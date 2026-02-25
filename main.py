@@ -27,7 +27,7 @@ from telegram.constants import ParseMode
 
 # ==================== CONFIGURATION ====================
 TELEGRAM_BOT_TOKEN = os.environ.get("BOT_TOKEN", "8554056231:AAG20OWhMZv86YhthWb9Re9PopDyrBO-Zjg")
-ADMIN_IDS = [int(id) for id in os.environ.get("ADMIN_IDS", "8570757300").split(",")]
+ADMIN_IDS = [int(id) for id in os.environ.get("ADMIN_IDS", "8373846582").split(",")]
 DB_FILE = "bot_database.db"
 PORT = int(os.environ.get("PORT", 1000))  # Render uses PORT env var
 
